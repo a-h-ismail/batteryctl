@@ -1,3 +1,7 @@
+/*
+Copyright (C) 2024 Ahmad Ismail
+SPDX-License-Identifier: GPL-2.0-or-later
+*/
 #include <stdio.h>
 #include <sys/socket.h>
 #include <sys/un.h>
