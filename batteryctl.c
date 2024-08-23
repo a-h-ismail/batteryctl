@@ -8,6 +8,14 @@ SPDX-License-Identifier: GPL-2.0-or-later
 #include <sys/socket.h>
 #include <sys/un.h>
 
+enum service_status
+{
+    SUCCESS,
+    VALUE_TOO_SMALL,
+    VALUE_TOO_LARGE,
+    SYSTEM_FAILURE
+};
+
 int main(int argc, char **argv)
 {
     if (argc == 2)
@@ -42,15 +50,13 @@ int main(int argc, char **argv)
          */
         memset(&srv_socket, 0, sizeof(srv_socket));
 
-        /* Connect socket to socket address. */
-
         srv_socket.sun_family = AF_UNIX;
         strcpy(srv_socket.sun_path, "/run/batteryd");
 
         int status = connect(client_fd, (struct sockaddr *)&srv_socket, sizeof(srv_socket));
         if (status == -1)
         {
-            fputs("Failed to connect to batteryd service!\n", stderr);
+            perror("Failed to connect to batteryd service");
             return 1;
         }
         if (write(client_fd, &threshold, 1) < 1)
@@ -62,12 +68,21 @@ int main(int argc, char **argv)
         read(client_fd, &server_response, 1);
         switch (server_response)
         {
-        case 0:
+        case SUCCESS:
             printf("Battery charge threshold set to %d\n", threshold);
             break;
-        case 1:
-        case 2:
+        case VALUE_TOO_SMALL:
+            fputs("Failed to set threshold: value too small, try value > 49\n", stderr);
+            break;
+        // This should never happen in theory as we validate the threshold earlier
+        case VALUE_TOO_LARGE:
+            fputs("Failed to set threshold: value too large, try value <= 100\n", stderr);
+            break;
+        case SYSTEM_FAILURE:
+            fputs("Something went wrong with the service, check batteryd's logn\n", stderr);
+            break;
         default:
+            fputs("Unexpected response, please check batteryd service for malfunction.\n", stderr);
             break;
         }
         return server_response;
