@@ -47,6 +47,7 @@ int main(void)
         {
             int8_t status = set_battery_charge_threshold(threshold);
             write(client_fd, &status, 1);
+            close(client_fd);
         }
         // Rate limiting to avoid a faulty user space process from thrashing the battery controller
         sleep(2);
