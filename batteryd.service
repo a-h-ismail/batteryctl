@@ -1,0 +1,9 @@
+[Unit]
+Description=Battery charge threshold management service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/batteryd
+
+[Install]
+WantedBy=multi-user.target
