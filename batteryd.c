@@ -3,12 +3,14 @@ Copyright (C) 2024 Ahmad Ismail
 SPDX-License-Identifier: GPL-2.0-or-later
 */
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <inttypes.h>
 #include <grp.h>
+#include <signal.h>
 
 enum service_status
 {
@@ -17,6 +19,18 @@ enum service_status
     VALUE_TOO_LARGE,
     SYSTEM_FAILURE
 };
+
+// The socket file descriptor should be global for easy closing on termination
+int srv_fd;
+
+void clean_exit(int signum)
+{
+    if (signum == SIGINT || signum == SIGTERM)
+    {
+        close(srv_fd);
+        exit(0);
+    }
+}
 
 int set_battery_charge_threshold(int8_t threshold)
 {
@@ -38,8 +52,20 @@ int set_battery_charge_threshold(int8_t threshold)
 
 int main(void)
 {
-    struct sockaddr_un srv_socket = {.sun_family = AF_UNIX, .sun_path = "/run/batteryd"};
-    int srv_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    signal(SIGINT, clean_exit);
+    signal(SIGTERM, clean_exit);
+    char *socket_path = "/run/batteryd";
+    struct sockaddr_un srv_socket;
+    /*
+     * For portability clear the whole structure, since some
+     * implementations have additional (nonstandard) fields in
+     * the structure. (this is according to man unix(7))
+     */
+    memset(&srv_socket, 0, sizeof(srv_socket));
+    srv_socket.sun_family = AF_UNIX;
+    strcpy(srv_socket.sun_path, socket_path);
+
+    srv_fd = socket(AF_UNIX, SOCK_STREAM, 0);
 
     // Get the GID of the batteryd group to allow access of group members to socket
     struct group *grp;
@@ -56,8 +82,8 @@ int main(void)
         return 1;
     }
     // Set the socket to be rw for root and the batteryd group
-    fchmod(srv_fd, 660);
-    fchown(srv_fd, 0, grp->gr_gid);
+    chmod(socket_path, 660);
+    chown(socket_path, 0, grp->gr_gid);
     if (listen(srv_fd, 1) == -1)
     {
         perror("Failed to start listener");
