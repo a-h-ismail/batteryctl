@@ -20,42 +20,89 @@ enum service_status
     SYSTEM_FAILURE
 };
 
-// The socket file descriptor should be global for easy closing on termination
-int srv_fd;
+#define BAT_CTRL "/sys/class/power_supply/BAT0/charge_control_end_threshold"
+#define CONFIG_FILE "/etc/batteryd.conf"
+#define SOCKET_PATH "/run/batteryd"
 
 void clean_exit(int signum)
 {
     if (signum == SIGINT || signum == SIGTERM)
     {
-        close(srv_fd);
+        unlink(SOCKET_PATH);
         exit(0);
     }
 }
 
 int set_battery_charge_threshold(int8_t threshold)
 {
-    char *ctrl = "/sys/class/power_supply/BAT0/charge_control_end_threshold";
     if (threshold < 50)
-        return 1;
+        return VALUE_TOO_SMALL;
     else if (threshold > 100)
-        return 2;
-    FILE *control = fopen(ctrl, "w");
+        return VALUE_TOO_LARGE;
+    FILE *control = fopen(BAT_CTRL, "w");
     int chars_written = fprintf(control, "%" PRId8, threshold);
     if (chars_written <= 0)
     {
         perror("Failed to set threshold");
-        return 3;
+        return SYSTEM_FAILURE;
     }
     fclose(control);
-    return 0;
+    FILE *config = fopen(CONFIG_FILE, "w");
+    if (config == NULL)
+    {
+        perror("Unable open configuration file");
+        return SYSTEM_FAILURE;
+    }
+    chars_written = fprintf(config, "%" PRId8, threshold);
+    if (chars_written <= 0)
+    {
+        perror("Failed to write configuration file");
+        fclose(config);
+        return SYSTEM_FAILURE;
+    }
+    else
+    {
+        fclose(config);
+        return 0;
+    }
+}
+
+int restore_config()
+{
+    FILE *config = fopen(CONFIG_FILE, "r");
+    if (config == NULL)
+    {
+        perror("Unable to load config");
+        return 1;
+    }
+    int threshold, status;
+    status = fscanf(config, "%d", &threshold);
+    if (status == 1)
+    {
+        status = set_battery_charge_threshold(threshold);
+        switch (status)
+        {
+        case VALUE_TOO_SMALL:
+        case VALUE_TOO_LARGE:
+            // Someone corrupted my config, fix it
+            fputs("Configuration file seems broken, resetting...\n", stderr);
+            set_battery_charge_threshold(100);
+            return 1;
+        case SYSTEM_FAILURE:
+            exit(1);
+        default:
+            printf("Set battery charge threshold to %d (from configuration)\n", threshold);
+            return 0;
+        }
+    }
 }
 
 int main(void)
 {
-    signal(SIGINT, clean_exit);
-    signal(SIGTERM, clean_exit);
-    char *socket_path = "/run/batteryd";
+    restore_config();
     struct sockaddr_un srv_socket;
+    int srv_fd;
+
     /*
      * For portability clear the whole structure, since some
      * implementations have additional (nonstandard) fields in
@@ -63,7 +110,7 @@ int main(void)
      */
     memset(&srv_socket, 0, sizeof(srv_socket));
     srv_socket.sun_family = AF_UNIX;
-    strcpy(srv_socket.sun_path, socket_path);
+    strcpy(srv_socket.sun_path, SOCKET_PATH);
 
     srv_fd = socket(AF_UNIX, SOCK_STREAM, 0);
 
@@ -82,8 +129,12 @@ int main(void)
         return 1;
     }
     // Set the socket to be rw for root and the batteryd group
-    chmod(socket_path, 660);
-    chown(socket_path, 0, grp->gr_gid);
+    chmod(SOCKET_PATH, 660);
+    chown(SOCKET_PATH, 0, grp->gr_gid);
+    // Install signal handlers for clean termination
+    signal(SIGINT, clean_exit);
+    signal(SIGTERM, clean_exit);
+
     if (listen(srv_fd, 1) == -1)
     {
         perror("Failed to start listener");
