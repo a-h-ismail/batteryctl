@@ -5,9 +5,10 @@ if [[ $EUID -ne 0 ]]; then
 else
   echo 'Installing battery threshold management service.'
 fi
+groupadd --system batteryd
 set -e
-gcc batteryd.c -o batteryd
-gcc batteryctl.c -o batteryctl
+gcc batteryd.c -O2 -o batteryd
+gcc batteryctl.c -O2 -o batteryctl
 mv batteryd batteryctl /usr/local/bin
 cp batteryd.service /usr/lib/systemd/system
 systemctl daemon-reload
