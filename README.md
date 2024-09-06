@@ -30,9 +30,10 @@ Clone the repository and run the install script:
 git clone https://github.com/a-h-ismail/batteryctl.git
 cd batteryctl
 chmod +x ./install.sh
+sudo ./install.sh
 ```
 Add your user to the `batteryd` group, otherwise `batteryctl` will require root to work:
 ```
-usermod -aG batteryd "$(whoami)"
+sudo usermod -aG batteryd "$(whoami)"
 ```
 Logout then login for group changes to take effect.
