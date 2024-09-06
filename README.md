@@ -1,4 +1,4 @@
-# batteryc
+# batteryd
 
 ## Purpose
 
@@ -37,3 +37,14 @@ Add your user to the `batteryd` group, otherwise `batteryc` will require root to
 sudo usermod -aG batteryd "$(whoami)"
 ```
 Logout then login for group changes to take effect.
+
+## Uninstallation
+
+Run the `remove.sh` script as root.
+
+## Connecting to the batteryd without batteryc
+
+- `batteryd` is launched by a systemd service and listens on the unix socket `/run/batteryd`.
+- Any client (with `batteryd` group membership) connects to the socket and writes the threshold (1 byte).
+- The server validates the value and attempts to set the threshold.
+- The server writes its response (success or failure with reasons) in one byte and closes the connection.
