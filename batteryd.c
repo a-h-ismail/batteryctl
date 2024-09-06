@@ -11,6 +11,7 @@ SPDX-License-Identifier: GPL-2.0-or-later
 #include <inttypes.h>
 #include <grp.h>
 #include <signal.h>
+#include <glob.h>
 
 enum service_status
 {
@@ -20,7 +21,7 @@ enum service_status
     SYSTEM_FAILURE
 };
 
-#define BAT_CTRL "/sys/class/power_supply/BAT0/charge_control_end_threshold"
+#define BAT_CTRL_GLOB "/sys/class/power_supply/BAT?/charge_control_end_threshold"
 #define CONFIG_FILE "/etc/batteryd.conf"
 #define SOCKET_PATH "/run/batteryd"
 
@@ -39,31 +40,46 @@ int set_battery_charge_threshold(int8_t threshold)
         return VALUE_TOO_SMALL;
     else if (threshold > 100)
         return VALUE_TOO_LARGE;
-    FILE *control = fopen(BAT_CTRL, "w");
-    int chars_written = fprintf(control, "%" PRId8, threshold);
-    if (chars_written <= 0)
+    FILE *control;
+    glob_t matches;
+    int status = glob(BAT_CTRL_GLOB, 0, NULL, &matches);
+    switch (status)
     {
-        perror("Failed to set threshold");
+    case GLOB_NOMATCH:
+        fputs("No battery charge threshold control found\n", stderr);
+    case GLOB_NOSPACE:
+    case GLOB_ABORTED:
         return SYSTEM_FAILURE;
-    }
-    fclose(control);
-    FILE *config = fopen(CONFIG_FILE, "w");
-    if (config == NULL)
-    {
-        perror("Unable open configuration file");
-        return SYSTEM_FAILURE;
-    }
-    chars_written = fprintf(config, "%" PRId8, threshold);
-    if (chars_written <= 0)
-    {
-        perror("Failed to write configuration file");
-        fclose(config);
-        return SYSTEM_FAILURE;
-    }
-    else
-    {
-        fclose(config);
-        return 0;
+    case 0:
+        control = fopen(matches.gl_pathv[0], "w");
+        globfree(&matches);
+        if (control == NULL)
+            return SYSTEM_FAILURE;
+        int chars_written = fprintf(control, "%" PRId8, threshold);
+        if (chars_written <= 0)
+        {
+            perror("Failed to set threshold");
+            return SYSTEM_FAILURE;
+        }
+        fclose(control);
+        FILE *config = fopen(CONFIG_FILE, "w");
+        if (config == NULL)
+        {
+            perror("Unable open configuration file");
+            return SYSTEM_FAILURE;
+        }
+        chars_written = fprintf(config, "%" PRId8, threshold);
+        if (chars_written <= 0)
+        {
+            perror("Failed to write configuration file");
+            fclose(config);
+            return SYSTEM_FAILURE;
+        }
+        else
+        {
+            fclose(config);
+            return SUCCESS;
+        }
     }
 }
 
