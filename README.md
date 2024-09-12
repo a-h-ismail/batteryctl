@@ -8,12 +8,12 @@ This project provides easy control and persistence of battery charge limiters in
 
 To set battery charge limit to 80% (if your device supports it):
 ```
-batteryc -s 80
+batteryctl -s 80
 ```
 
 To check the current charge limit:
 ```
-batteryc -g
+batteryctl -g
 ```
 
 The service saves and restores the current battery charge threshold, providing persistence across reboots.
@@ -27,12 +27,12 @@ sudo apt install gcc
 
 Clone the repository and run the install script:
 ```
-git clone https://github.com/a-h-ismail/batteryc.git
-cd batteryc
+git clone https://github.com/a-h-ismail/batteryd.git
+cd batteryd
 chmod +x ./install.sh
 sudo ./install.sh
 ```
-Add your user to the `batteryd` group, otherwise `batteryc` will require root to work:
+Add your user to the `batteryd` group, otherwise `batteryctl` will require root to work:
 ```
 sudo usermod -aG batteryd "$(whoami)"
 ```
@@ -42,7 +42,7 @@ Logout then login for group changes to take effect.
 
 Run the `remove.sh` script as root.
 
-## Connecting to the batteryd without batteryc
+## Connecting to batteryd without batteryctl
 
 - `batteryd` is launched by a systemd service and listens on the unix socket `/run/batteryd`.
 - Any client (with `batteryd` group membership) connects to the socket and writes the threshold (1 byte).

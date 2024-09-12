@@ -8,8 +8,8 @@ fi
 groupadd --system batteryd
 set -e
 gcc batteryd.c -O2 -o batteryd
-gcc batteryc.c -O2 -o batteryc
-mv batteryd batteryc /usr/local/bin
+gcc batteryctl.c -O2 -o batteryctl
+mv battery{d,ctl} /usr/local/bin
 cp batteryd.service /usr/lib/systemd/system
 systemctl daemon-reload
 systemctl enable --now batteryd.service
